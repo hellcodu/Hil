@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+instance/
+.env
+brain_tumor.db
+training_results/*.pkl
+static/uploads/*
+static/reports/*
+static/results/*
+.DS_Store

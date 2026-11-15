@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Dashboard - BrainScan AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow-sm border-b border-slate-200 py-4 px-6 flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <a href="/" class="text-2xl font-bold text-indigo-600">🧠 BrainScan-AI</a>
+            <span class="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded-full">Patient Portal</span>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span class="text-sm font-medium text-slate-700">Welcome, {{ session.user_name }}</span>
+            <a href="/model/performance" class="text-sm text-slate-600 hover:text-indigo-600 font-medium">Model Performance</a>
+            <a href="/logout" class="text-sm text-red-600 hover:text-red-700 font-medium">Logout</a>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-6xl w-full mx-auto px-4 py-8 space-y-8">
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="p-4 rounded-xl text-sm {% if category == 'error' %}bg-red-50 text-red-700 border border-red-200{% else %}bg-emerald-50 text-emerald-700 border border-emerald-200{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Left Column: Upload & AI Chat Assistant -->
+            <div class="space-y-8 lg:col-span-1">
+                <!-- Upload Card -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                    <h2 class="text-lg font-bold text-slate-900 mb-4">Upload MRI Scan</h2>
+                    <form action="/patient/predict" method="POST" enctype="multipart/form-data" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Select Neural Architecture</label>
+                            <select name="model_name" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-sm">
+                                <option value="mobilenetv2">MobileNetV2 (Transfer Learning)</option>
+                                <option value="cnn">Custom CNN</option>
+                                <option value="cnn_lstm">CNN-LSTM (RNN Sequence)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Brain MRI Image (JPG, PNG)</label>
+                            <input type="file" name="mri_image" accept=".jpg, .jpeg, .png" required class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
+                            <p class="text-xs text-slate-400 mt-1">Max file size: 10 MB</p>
+                        </div>
+
+                        <button type="submit" class="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-semibold hover:bg-indigo-700 transition shadow-sm text-sm">
+                            Analyze Scan & Run AI
+                        </button>
+                    </form>
+                </div>
+
+                <!-- AI Assistant Chat Widget -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col h-[400px]">
+                    <div class="flex items-center space-x-2 mb-3">
+                        <span class="text-xl">🤖</span>
+                        <h2 class="text-base font-bold text-slate-900">AI Medical Assistant</h2>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-3">Ask questions about your reports, tumor types, or general brain MRI analysis.</p>
+                    
+                    <!-- Chat Messages Container -->
+                    <div id="chat-messages" class="flex-grow overflow-y-auto space-y-3 pr-2 text-xs border border-slate-100 rounded-xl p-3 bg-slate-50/50">
+                        <div class="bg-indigo-50 text-indigo-900 p-2.5 rounded-xl rounded-tl-none">
+                            Hello! How can I help you understand your brain scan or tumor categories today?
+                        </div>
+                    </div>
+
+                    <!-- Chat Input -->
+                    <div class="mt-3 flex space-x-2">
+                        <input type="text" id="chat-input" placeholder="Type your question..." class="flex-grow px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-xs">
+                        <button onclick="sendChatMessage()" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-indigo-700 transition">Ask</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Report History -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 lg:col-span-2 h-fit">
+                <h2 class="text-lg font-bold text-slate-900 mb-4">Your Diagnostic Reports</h2>
+                
+                {% if reports %}
+                    <div class="space-y-4">
+                        {% for report in reports %}
+                            <div class="border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-indigo-300 transition">
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="font-bold text-slate-900">Report #{{ report.id }}</span>
+                                        <span class="px-2 py-0.5 text-xs font-semibold rounded-full {% if report.review_status == 'Reviewed' %}bg-emerald-50 text-emerald-700{% else %}bg-amber-50 text-amber-700{% endif %}">
+                                            {{ report.review_status }}
+                                        </span>
+                                    </div>
+                                    <p class="text-sm text-slate-600 mt-1">Prediction: <strong class="text-indigo-600">{{ report.prediction }}</strong> ({{ report.confidence|round(2) }}%)</p>
+                                    <p class="text-xs text-slate-400 mt-1">Model: {{ report.model_name.upper() }} | Date: {{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                                </div>
+                                <div class="flex items-center space-x-2 w-full sm:w-auto">
+                                    <a href="/report/{{ report.id }}" class="flex-1 sm:flex-none text-center bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-200 transition">View</a>
+                                    <a href="/download/pdf/{{ report.id }}" class="flex-1 sm:flex-none text-center bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-100 transition">PDF</a>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-12 text-slate-400">
+                        <p class="text-base">No diagnostic reports found.</p>
+                        <p class="text-sm mt-1">Upload an MRI scan using the left panel to generate your first analysis.</p>
+                    </div>
+                {% endif %}
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Chat JavaScript -->
+    <script>
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const question = input.value.trim();
+            if (!question) return;
+
+            const messagesDiv = document.getElementById('chat-messages');
+            
+            // Append user message
+            messagesDiv.innerHTML += `<div class="bg-slate-200 text-slate-800 p-2.5 rounded-xl rounded-tr-none ml-4">${question}</div>`;
+            input.value = '';
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            // Append loading indicator
+            const loadingId = 'loading-' + Date.now();
+            messagesDiv.innerHTML += `<div id="${loadingId}" class="bg-indigo-50 text-indigo-900 p-2.5 rounded-xl rounded-tl-none mr-4 italic">Thinking...</div>`;
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            try {
+                const response = await fetch('/patient/ai-chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: question })
+                });
+                const data = await response.json();
+                
+                document.getElementById(loadingId).remove();
+                
+                if (data.success) {
+                    messagesDiv.innerHTML += `<div class="bg-indigo-50 text-indigo-900 p-2.5 rounded-xl rounded-tl-none mr-4">${data.answer}</div>`;
+                } else {
+                    messagesDiv.innerHTML += `<div class="bg-red-50 text-red-700 p-2.5 rounded-xl rounded-tl-none mr-4">Error getting response.</div>`;
+                }
+            } catch (err) {
+                document.getElementById(loadingId).remove();
+                messagesDiv.innerHTML += `<div class="bg-red-50 text-red-700 p-2.5 rounded-xl rounded-tl-none mr-4">Network error.</div>`;
+            }
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        document.getElementById('chat-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendChatMessage();
+            }
+        });
+    </script>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-6 text-center text-sm text-slate-500">
+        &copy; 2026 BrainScan-AI Major Project. All rights reserved.
+    </footer>
+</body>
+</html>
